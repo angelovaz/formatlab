@@ -16,6 +16,7 @@ type AdFormat =
   | 'swipePick'
   | 'scrollUnlock'
 type FeedMode = 'sports' | 'business' | 'lifestyle'
+type ThemeMode = 'light' | 'dark'
 
 type Story = {
   eyebrow: string
@@ -1191,6 +1192,35 @@ function ContextSelector({ feedMode, onFeedModeChange }: { feedMode: FeedMode; o
   )
 }
 
+function ThemeSelector({ themeMode, onThemeModeChange }: { themeMode: ThemeMode; onThemeModeChange: (mode: ThemeMode) => void }) {
+  return (
+    <section className="control-section">
+      <div className="section-heading">
+        <span>Theme</span>
+        <h2>Aparência</h2>
+      </div>
+      <div className="segmented-control segmented-control-two" role="tablist" aria-label="Theme mode">
+        <button
+          aria-selected={themeMode === 'light'}
+          className={themeMode === 'light' ? 'segment-active' : ''}
+          onClick={() => onThemeModeChange('light')}
+          type="button"
+        >
+          Light
+        </button>
+        <button
+          aria-selected={themeMode === 'dark'}
+          className={themeMode === 'dark' ? 'segment-active' : ''}
+          onClick={() => onThemeModeChange('dark')}
+          type="button"
+        >
+          Dark
+        </button>
+      </div>
+    </section>
+  )
+}
+
 function Inspector({ activeFormat }: { activeFormat: AdFormat }) {
   const current = formatOptions.find((format) => format.id === activeFormat) ?? formatOptions[0]
 
@@ -1310,9 +1340,10 @@ function Inspector({ activeFormat }: { activeFormat: AdFormat }) {
 function App() {
   const [activeFormat, setActiveFormat] = useState<AdFormat>('bet365')
   const [feedMode, setFeedMode] = useState<FeedMode>('sports')
+  const [themeMode, setThemeMode] = useState<ThemeMode>('light')
 
   return (
-    <main className="app-shell">
+    <main className={themeMode === 'dark' ? 'app-shell theme-dark' : 'app-shell'}>
       <section className="workspace">
         <aside className="left-rail">
           <div className="brand-block">
@@ -1332,6 +1363,7 @@ function App() {
 
           <FormatSelector activeFormat={activeFormat} onFormatChange={setActiveFormat} />
           <ContextSelector feedMode={feedMode} onFeedModeChange={setFeedMode} />
+          <ThemeSelector themeMode={themeMode} onThemeModeChange={setThemeMode} />
         </aside>
 
         <PhonePreview activeFormat={activeFormat} feedMode={feedMode} />
