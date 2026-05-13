@@ -15,6 +15,7 @@ type AdFormat =
   | 'casinoCaptcha'
   | 'swipePick'
   | 'scrollUnlock'
+  | 'sponsorClick'
 type FeedMode = 'sports' | 'business' | 'lifestyle'
 type ThemeMode = 'light' | 'dark'
 
@@ -131,6 +132,14 @@ const formatOptions: FormatInfo[] = [
     description: 'Formato em que o scroll do utilizador carrega uma barra de progresso até desbloquear uma oferta e activar o clique final.',
     bestFor: 'Betting, casino, promoções por recompensa e campanhas que querem transformar scroll em intenção qualificada.',
     impact: 'Rewarded scroll',
+  },
+  {
+    id: 'sponsorClick',
+    label: 'Sponsor Click',
+    shortLabel: 'Sponsor',
+    description: 'Formato de next click patrocinado, redesenhado com aviso claro e stories destacadas para que o gesto patrocinado seja percebido antes do toque.',
+    bestFor: 'Campanhas de afiliados, betting e marcas que querem um click patrocinado explícito sem leitura de scam.',
+    impact: 'Explicit click',
   },
   {
     id: 'casinoCaptcha',
@@ -335,9 +344,27 @@ function CloseIcon() {
   )
 }
 
-function StoryCard({ story, compact = false }: { story: Story; compact?: boolean }) {
-  return (
-    <article className={compact ? 'story-card story-card-compact' : 'story-card'}>
+function StoryCard({
+  story,
+  compact = false,
+  onClick,
+  sponsoredTarget = false,
+}: {
+  story: Story
+  compact?: boolean
+  onClick?: () => void
+  sponsoredTarget?: boolean
+}) {
+  const className = [
+    compact ? 'story-card story-card-compact' : 'story-card',
+    onClick ? 'story-card-button' : '',
+    sponsoredTarget ? 'story-card-sponsored' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+
+  const content = (
+    <>
       <img src={story.image} alt="" />
       <div>
         <span>{story.eyebrow}</span>
@@ -345,7 +372,40 @@ function StoryCard({ story, compact = false }: { story: Story; compact?: boolean
         {!compact ? <p>{story.summary}</p> : null}
         <small>{story.time} ago</small>
       </div>
-    </article>
+      {sponsoredTarget ? <div className="sponsor-target-pill">Sponsored target</div> : null}
+    </>
+  )
+
+  if (onClick) {
+    return (
+      <button className={className} onClick={onClick} type="button">
+        {content}
+      </button>
+    )
+  }
+
+  return <article className={className}>{content}</article>
+}
+
+const SPONSOR_CLICK_URL = 'https://www.ladbrokes.com/'
+
+function SponsorClickNotice({ used }: { used: boolean }) {
+  return (
+    <section className={used ? 'sponsor-click-topscroll sponsor-click-topscroll-used' : 'sponsor-click-topscroll'}>
+      <div className="sponsor-click-copy">
+        <span>Topscroll sponsor click</span>
+        <h3>{used ? 'Sponsored click used' : 'The next click anywhere on this site is sponsored'}</h3>
+        <p>
+          {used
+            ? 'The sponsored click has already been triggered. The site now behaves normally.'
+            : 'Tap any headline, image, menu item or page area below to open the sponsor site.'}
+        </p>
+      </div>
+      <div className="sponsor-click-brand">
+        <strong>Ladbrokes</strong>
+        <small>£30 free bets</small>
+      </div>
+    </section>
   )
 }
 
@@ -1011,10 +1071,30 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
     format: 'sticky',
     dismissed: false,
   })
+  const [sponsorClickState, setSponsorClickState] = useState<{ format: AdFormat; used: boolean }>({
+    format: 'sticky',
+    used: false,
+  })
   const gateUnlocked = gateState.format === activeFormat && gateState.unlocked
   const interstitialDismissed = interstitialState.format === activeFormat && interstitialState.dismissed
+  const sponsorClickUsed = sponsorClickState.format === activeFormat && sponsorClickState.used
   const handleRefresh = () => {
     window.location.reload()
+  }
+  const handleSponsorClick = () => {
+    if (sponsorClickUsed) {
+      return
+    }
+
+    window.open(SPONSOR_CLICK_URL, '_blank', 'noopener,noreferrer')
+    setSponsorClickState({ format: activeFormat, used: true })
+  }
+  const handleSponsoredSiteClick = () => {
+    if (activeFormat !== 'sponsorClick' || sponsorClickUsed) {
+      return
+    }
+
+    handleSponsorClick()
   }
 
   return (
@@ -1024,7 +1104,10 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
     >
       <div className="phone-device">
         <div className="phone-sensor" />
-        <div className="mobile-site">
+        <div
+          className={activeFormat === 'sponsorClick' && !sponsorClickUsed ? 'mobile-site sponsor-click-armed' : 'mobile-site'}
+          onClickCapture={handleSponsoredSiteClick}
+        >
           <div className="ios-status-bar" aria-label="iPhone status bar">
             <strong>9:41</strong>
             <div className="ios-status-icons" aria-hidden="true">
@@ -1060,13 +1143,25 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
                 <small>{feed.edition}</small>
               </div>
 
-              <article className="hero-story">
-                <img src={hero.image} alt="" />
-                <div className="hero-copy">
-                  <span>{hero.eyebrow}</span>
-                  <h2>{hero.title}</h2>
-                </div>
-              </article>
+              {activeFormat === 'sponsorClick' ? <SponsorClickNotice used={sponsorClickUsed} /> : null}
+
+              {activeFormat === 'sponsorClick' ? (
+                <article className="hero-story">
+                  <img src={hero.image} alt="" />
+                  <div className="hero-copy">
+                    <span>{hero.eyebrow}</span>
+                    <h2>{hero.title}</h2>
+                  </div>
+                </article>
+              ) : (
+                <article className="hero-story">
+                  <img src={hero.image} alt="" />
+                  <div className="hero-copy">
+                    <span>{hero.eyebrow}</span>
+                    <h2>{hero.title}</h2>
+                  </div>
+                </article>
+              )}
 
               <div className="two-up">
                 <StoryCard story={second} compact />
@@ -1251,6 +1346,8 @@ function Inspector({ activeFormat }: { activeFormat: AdFormat }) {
                               ? '92%'
                               : activeFormat === 'scrollUnlock'
                                 ? '93%'
+                                : activeFormat === 'sponsorClick'
+                                  ? '95%'
                             : activeFormat === 'casinoCaptcha'
                               ? '97%'
                         : '98%',
@@ -1274,6 +1371,8 @@ function Inspector({ activeFormat }: { activeFormat: AdFormat }) {
                           ? 'Baixa'
                           : activeFormat === 'scrollUnlock'
                             ? 'Baixa'
+                            : activeFormat === 'sponsorClick'
+                              ? 'Média'
                         : activeFormat === 'casinoCaptcha'
                           ? 'Alta'
                     : 'Média',
@@ -1301,6 +1400,8 @@ function Inspector({ activeFormat }: { activeFormat: AdFormat }) {
                             ? 'Swipe logic'
                             : activeFormat === 'scrollUnlock'
                               ? 'Progress bar'
+                              : activeFormat === 'sponsorClick'
+                                ? 'Click transfer'
                           : activeFormat === 'casinoCaptcha'
                             ? 'Captcha'
                       : 'Premium',
