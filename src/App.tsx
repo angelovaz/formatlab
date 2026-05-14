@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import './App.css'
 
 type AdFormat =
@@ -18,6 +18,7 @@ type AdFormat =
   | 'sponsorClick'
 type FeedMode = 'sports' | 'business' | 'lifestyle'
 type ThemeMode = 'light' | 'dark'
+type PreviewMode = 'mobile' | 'desktop'
 
 type Story = {
   eyebrow: string
@@ -1058,7 +1059,15 @@ function TakeoverAd() {
   )
 }
 
-function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feedMode: FeedMode }) {
+function PhonePreview({
+  activeFormat,
+  feedMode,
+  previewMode,
+}: {
+  activeFormat: AdFormat
+  feedMode: FeedMode
+  previewMode: PreviewMode
+}) {
   const feed = feedModes[feedMode] ?? feedModes.sports
   const [hero, second, third, ...moreStories] = feed.stories
   const extendedStories = [...moreStories, hero, second, third, ...moreStories]
@@ -1075,11 +1084,22 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
     format: 'sticky',
     used: false,
   })
+  const [refreshNonce, setRefreshNonce] = useState(0)
   const gateUnlocked = gateState.format === activeFormat && gateState.unlocked
   const interstitialDismissed = interstitialState.format === activeFormat && interstitialState.dismissed
   const sponsorClickUsed = sponsorClickState.format === activeFormat && sponsorClickState.used
-  const handleRefresh = () => {
-    window.location.reload()
+  const previewRefreshKey = `${activeFormat}-${feedMode}-${refreshNonce}`
+
+  useEffect(() => {
+    mobileFeedRef.current?.scrollTo({ top: 0, behavior: 'instant' })
+  }, [refreshNonce])
+
+  const handleRefresh = (event: MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation()
+    setGateState({ format: activeFormat, unlocked: false })
+    setInterstitialState({ format: activeFormat, dismissed: false })
+    setSponsorClickState({ format: activeFormat, used: false })
+    setRefreshNonce((current) => current + 1)
   }
   const handleSponsorClick = () => {
     if (sponsorClickUsed) {
@@ -1089,8 +1109,12 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
     window.open(SPONSOR_CLICK_URL, '_blank', 'noopener,noreferrer')
     setSponsorClickState({ format: activeFormat, used: true })
   }
-  const handleSponsoredSiteClick = () => {
+  const handleSponsoredSiteClick = (event: MouseEvent<HTMLDivElement>) => {
     if (activeFormat !== 'sponsorClick' || sponsorClickUsed) {
+      return
+    }
+
+    if ((event.target as HTMLElement).closest('.safari-bottom-bar')) {
       return
     }
 
@@ -1099,8 +1123,8 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
 
   return (
     <section
-      className={`phone-shell format-${activeFormat} ${interstitialDismissed ? 'interstitial-dismissed' : ''}`}
-      aria-label="Pré-visualização mobile"
+      className={`phone-shell preview-${previewMode} format-${activeFormat} ${interstitialDismissed ? 'interstitial-dismissed' : ''}`}
+      aria-label={previewMode === 'desktop' ? 'Pré-visualização desktop' : 'Pré-visualização mobile'}
     >
       <div className="phone-device">
         <div className="phone-sensor" />
@@ -1126,18 +1150,20 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
             {activeFormat === 'takeover' ? <TakeoverAd /> : null}
             {activeFormat === 'casinoInterstitial' ? (
               <CasinoInterstitialAd
+                key={previewRefreshKey}
                 dismissed={interstitialDismissed}
                 onDismiss={() => setInterstitialState({ format: activeFormat, dismissed: true })}
               />
             ) : null}
             {activeFormat === 'casinoCaptcha' ? (
               <CasinoCaptchaAd
+                key={previewRefreshKey}
                 dismissed={interstitialDismissed}
                 onDismiss={() => setInterstitialState({ format: activeFormat, dismissed: true })}
               />
             ) : null}
 
-            <main className="mobile-feed" ref={mobileFeedRef}>
+            <main className="mobile-feed" key={previewRefreshKey} ref={mobileFeedRef}>
               <div className="edition-row">
                 <span>{feed.label}</span>
                 <small>{feed.edition}</small>
@@ -1223,7 +1249,7 @@ function PhonePreview({ activeFormat, feedMode }: { activeFormat: AdFormat; feed
               </div>
             </div>
 
-            {activeFormat === 'scrollUnlock' ? <ScrollUnlockAd feedRef={mobileFeedRef} /> : null}
+            {activeFormat === 'scrollUnlock' ? <ScrollUnlockAd key={previewRefreshKey} feedRef={mobileFeedRef} /> : null}
             {activeFormat === 'sticky' ? <StickyAd /> : null}
         </div>
       </div>
@@ -1282,6 +1308,41 @@ function ContextSelector({ feedMode, onFeedModeChange }: { feedMode: FeedMode; o
             {feedModes[mode].label}
           </button>
         ))}
+      </div>
+    </section>
+  )
+}
+
+function PreviewSelector({
+  previewMode,
+  onPreviewModeChange,
+}: {
+  previewMode: PreviewMode
+  onPreviewModeChange: (mode: PreviewMode) => void
+}) {
+  return (
+    <section className="control-section">
+      <div className="section-heading">
+        <span>Preview</span>
+        <h2>Visualização</h2>
+      </div>
+      <div className="segmented-control segmented-control-two" role="tablist" aria-label="Preview mode">
+        <button
+          aria-selected={previewMode === 'mobile'}
+          className={previewMode === 'mobile' ? 'segment-active' : ''}
+          onClick={() => onPreviewModeChange('mobile')}
+          type="button"
+        >
+          Mobile
+        </button>
+        <button
+          aria-selected={previewMode === 'desktop'}
+          className={previewMode === 'desktop' ? 'segment-active' : ''}
+          onClick={() => onPreviewModeChange('desktop')}
+          type="button"
+        >
+          Desktop
+        </button>
       </div>
     </section>
   )
@@ -1442,6 +1503,7 @@ function App() {
   const [activeFormat, setActiveFormat] = useState<AdFormat>('bet365')
   const [feedMode, setFeedMode] = useState<FeedMode>('sports')
   const [themeMode, setThemeMode] = useState<ThemeMode>('light')
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('mobile')
 
   return (
     <main className={themeMode === 'dark' ? 'app-shell theme-dark' : 'app-shell'}>
@@ -1463,11 +1525,12 @@ function App() {
           </p>
 
           <FormatSelector activeFormat={activeFormat} onFormatChange={setActiveFormat} />
+          <PreviewSelector previewMode={previewMode} onPreviewModeChange={setPreviewMode} />
           <ContextSelector feedMode={feedMode} onFeedModeChange={setFeedMode} />
           <ThemeSelector themeMode={themeMode} onThemeModeChange={setThemeMode} />
         </aside>
 
-        <PhonePreview activeFormat={activeFormat} feedMode={feedMode} />
+        <PhonePreview activeFormat={activeFormat} feedMode={feedMode} previewMode={previewMode} />
         <Inspector activeFormat={activeFormat} />
       </section>
     </main>
